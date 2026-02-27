@@ -1,0 +1,37 @@
+version: '3.8'
+
+services:
+  # CPU 版本
+  whisper-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: whisper-api:latest
+    container_name: whisper-api-cpu
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./models:/app/models:ro
+      - ./uploads:/app/uploads
+      - ./outputs:/app/outputs
+    environment:
+      - SERVER_PORT=8080
+      - GIN_MODE=release
+      - WHISPER_MODEL_PATH=/app/models/ggml-base.bin
+      - WHISPER_THREADS=4
+      - MAX_FILE_SIZE=104857600
+      - UPLOAD_DIR=/app/uploads
+      - OUTPUT_DIR=/app/outputs
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - whisper-network
+
+networks:
+  whisper-network:
+    driver: bridge

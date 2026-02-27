@@ -1,0 +1,57 @@
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# Documentation
+*.md
+!README.md
+docs/
+legacy/
+
+# Test data
+test_data/
+*.mp3
+*.mp4
+*.wav
+*.aiff
+*.srt
+
+# Build artifacts
+bin/
+whisper-transcribe
+whisper-server
+
+# Temporary files
+uploads/*
+!uploads/.gitkeep
+outputs/*
+!outputs/.gitkeep
+tmp/
+*_temp.*
+
+# Development
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Environment
+.env.local
+.env.*.local
+
+# Logs
+*.log
+
+# Testing
+coverage.out
+coverage.html
+
+# Models (download separately)
+models/*.bin
+!models/.gitkeep

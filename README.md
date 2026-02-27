@@ -1,222 +1,433 @@
-# Go Whisper.cpp 语音识别示例
+# Whisper API Server
 
-这个项目演示了如何在Go中使用whisper.cpp的Go绑定来实现本地MP3文件的语音识别功能。
+<div align="center">
 
-## 功能特性
+**基于 Gin 框架的 Whisper 语音转文字 API 服务**
 
-- ✅ 支持MP3格式音频文件（自动转换为WAV）
-- ✅ 基于whisper.cpp的高性能语音识别
-- ✅ 支持多种语言识别（中文、英文等）
-- ✅ 时间戳输出
-- ✅ 跨平台支持（macOS、Linux、Windows）
+[![Go Version](https://img.shields.io/badge/Go-1.23.4+-00ADD8?style=flat&logo=go)](https://golang.org)
+[![Gin Framework](https://img.shields.io/badge/Gin-1.10.0-00ADD8?style=flat)](https://github.com/gin-gonic/gin)
+[![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-## 系统要求
+[功能特性](#✨-功能特性) • [快速开始](#🚀-快速开始) • [API 文档](#📡-api-文档) • [项目架构](#🏗️-项目架构) • [配置说明](#⚙️-配置说明)
 
-- Go 1.19或更高版本
-- FFmpeg（用于音频格式转换）
-- C/C++编译器（用于编译whisper.cpp）
+</div>
 
-## 安装步骤
+---
 
-### 1. 安装依赖
+## 📖 简介
 
-#### macOS
-```bash
-# 安装FFmpeg
-brew install ffmpeg
+本项目是一个生产就绪的 Whisper 语音转文字 API 服务，采用标准的 Go Web 应用架构设计。将 OpenAI 的 Whisper 模型封装为 RESTful API，支持多种音频格式和输出格式。
 
-# 安装编译工具（通常已安装）
-xcode-select --install
-```
+### 从 CLI 到 Web API 的演进
 
-#### Linux (Ubuntu/Debian)
-```bash
-# 安装FFmpeg和编译工具
-sudo apt-get update
-sudo apt-get install ffmpeg build-essential
-```
+本项目经过完整的架构重构，从简单的命令行工具升级为专业的 Web API 服务。旧版 CLI 工具代码保留在 `legacy/` 目录中供参考。
 
-#### Windows
-```bash
-# 安装FFmpeg
-# 下载: https://ffmpeg.org/download.html
-# 安装MinGW-w64用于编译
-```
+## ✨ 功能特性
 
-### 2. 克隆whisper.cpp并下载模型
+- 🎯 **RESTful API** - 标准的 HTTP API 接口
+- 📁 **多格式支持** - 支持 MP3, WAV, M4A, AAC, FLAC, OGG
+- 📝 **多种输出** - JSON, SRT 字幕, TXT 文本
+- 🌍 **自动语言检测** - 支持多语言自动识别
+- 🔄 **实时转录** - 快速处理音频文件
+- 📊 **结构化日志** - 完整的请求/响应日志
+- 🛡️ **错误恢复** - 自动错误恢复机制
+- 🌐 **CORS 支持** - 跨域请求支持
+- ⚙️ **环境配置** - 灵活的配置管理
+- 📚 **完整文档** - 详细的使用和架构文档
 
-```bash
-# 创建models目录
-mkdir -p models
-
-# 下载whisper.cpp仓库中的模型下载脚本
-curl -o models/download-ggml-model.sh https://raw.githubusercontent.com/ggerganov/whisper.cpp/master/models/download-ggml-model.sh
-
-# 赋予执行权限（macOS/Linux）
-chmod +x models/download-ggml-model.sh
-
-# 下载模型（可选: tiny, base, small, medium, large）
-bash models/download-ggml-model.sh base
-```
-
-或者手动从 [Hugging Face](https://huggingface.co/ggerganov/whisper.cpp) 下载模型文件到`models/`目录。
-
-### 3. 安装Go依赖
-
-```bash
-go mod tidy
-```
-
-## 使用方法
-
-### 基本用法
-
-```bash
-# 识别MP3文件
-go run main.go -audio your_audio.mp3
-
-# 指定模型文件
-go run main.go -audio your_audio.mp3 -model models/ggml-base.bin
-
-# 指定语言
-go run main.go -audio your_audio.mp3 -lang zh
-
-# 指定线程数
-go run main.go -audio your_audio.mp3 -threads 8
-```
-
-### 命令行参数
-
-| 参数 | 默认值 | 说明 |
-|------|--------|------|
-| `-audio` | (必需) | MP3音频文件路径 |
-| `-model` | `models/ggml-base.bin` | Whisper模型文件路径 |
-| `-lang` | `auto` | 语言代码 (auto, zh, en, ja, etc.) |
-| `-threads` | `4` | 使用的CPU线程数 |
-
-### 示例
-
-```bash
-# 识别中文音频
-go run main.go -audio chinese_speech.mp3 -lang zh
-
-# 识别英文音频，使用更大的模型以提高准确度
-go run main.go -audio english_speech.mp3 -model models/ggml-small.bin -lang en
-
-# 使用所有可用CPU核心
-go run main.go -audio my_audio.mp3 -threads 8
-```
-
-## 编译为可执行文件
-
-```bash
-# 编译
-go build -o whisper-transcribe main.go
-
-# 运行
-./whisper-transcribe -audio your_audio.mp3
-```
-
-## 项目结构
+## 🏗️ 项目结构
 
 ```
 whisper_with_go/
-├── main.go              # 主程序
-├── go.mod               # Go模块配置
-├── go.sum               # Go依赖锁定文件
-├── README.md            # 说明文档
-├── models/              # 模型文件目录
-│   ├── download-ggml-model.sh
-│   └── ggml-base.bin
-└── dev.md               # 开发文档
+├── cmd/
+│   └── server/            # 应用入口
+│       └── main.go
+├── internal/              # 内部私有代码
+│   ├── handler/          # HTTP 处理器层
+│   ├── service/          # 业务逻辑层
+│   ├── model/            # 数据模型层
+│   ├── middleware/       # 中间件（日志、CORS、恢复）
+│   └── router/           # 路由配置
+├── pkg/
+│   └── utils/            # 可复用工具库
+├── config/               # 配置管理
+├── uploads/              # 上传文件目录
+├── outputs/              # 输出文件目录
+├── models/               # Whisper 模型文件
+├── test_data/            # 测试数据
+├── legacy/               # 旧版 CLI 工具（保留参考）
+├── docs/                 # 文档目录
+├── .env.example          # 环境变量示例
+├── Makefile              # 构建脚本
+└── README.md             # 本文件
 ```
 
-## 支持的模型
+### 架构分层
 
-| 模型 | 大小 | 内存使用 | 相对速度 | 准确度 |
-|------|------|----------|----------|--------|
-| tiny | 75 MB | ~273 MB | 最快 | 一般 |
-| base | 142 MB | ~388 MB | 快 | 较好 |
-| small | 466 MB | ~852 MB | 中等 | 好 |
-| medium | 1.5 GB | ~2.1 GB | 慢 | 很好 |
-| large | 2.9 GB | ~3.9 GB | 最慢 | 最好 |
+- **Handler 层**: HTTP 请求处理、参数验证
+- **Service 层**: 核心业务逻辑、Whisper 调用
+- **Model 层**: 数据结构定义
+- **Utils 层**: 工具函数库
 
-推荐：
-- 日常使用：`base`或`small`
-- 高准确度需求：`medium`或`large`
-- 快速测试：`tiny`
+详细架构说明请查看 [ARCHITECTURE.md](docs/ARCHITECTURE.md)
 
-## 输出格式
+## 🚀 快速开始
 
-程序会输出带时间戳的转录文本：
+### 前置要求
 
+1. **Go 1.23.4+**
+   ```bash
+   go version
+   ```
+
+2. **FFmpeg** - 用于音频格式转换
+   ```bash
+   # macOS
+   brew install ffmpeg
+   
+   # Ubuntu/Debian
+   sudo apt-get install ffmpeg
+   ```
+
+3. **Whisper 模型**
+   ```bash
+   # 下载 base 模型（推荐）
+   bash download_model.sh
+   ```
+
+### 快速启动
+
+#### 🐳 Docker 方式（推荐）
+
+最简单的启动方式，无需配置环境：
+
+```bash
+# 1. 下载模型
+bash download_model.sh
+
+# 2. 启动服务（CPU 版本）
+./scripts/docker.sh build && ./scripts/docker.sh up
+
+# 或启动 GPU 版本（需要 NVIDIA GPU）
+./scripts/docker.sh build-gpu && ./scripts/docker.sh up-gpu
 ```
-音频文件: my_audio.mp3
-临时WAV文件: my_audio_temp.wav
-模型文件: models/ggml-base.bin
-语言: auto
-开始转录...
-------------------------------------------------------------
-[00:00:00.000 --> 00:00:03.000]  这是一段测试音频
-[00:00:03.000 --> 00:00:06.500]  用于演示语音识别功能
-[00:00:06.500 --> 00:00:10.000]  识别结果将包含时间戳信息
-------------------------------------------------------------
-转录完成!
+
+详细说明：[Docker 快速开始](DOCKER_QUICKSTART.md) | [Docker 部署指南](docker/README.md)
+
+#### 💻 本地运行方式
+
+#### 方式 1: 使用启动脚本（推荐）
+
+```bash
+./start.sh
 ```
 
-## 常见问题
+#### 方式 2: 使用 Makefile
 
-### 1. 找不到ffmpeg
+```bash
+# 查看所有命令
+make help
+
+# 项目初始化
+make setup
+
+# 运行服务器
+make run
 ```
-错误: ffmpeg未安装，请先安装ffmpeg
+
+#### 方式 3: 手动运行
+
+```bash
+# 安装依赖
+go mod tidy
+
+# 启动服务器
+CGO_ENABLED=1 \
+CGO_LDFLAGS="-L/usr/local/lib" \
+CGO_CFLAGS="-I/usr/local/include" \
+DYLD_LIBRARY_PATH=/usr/local/lib \
+go run cmd/server/main.go
 ```
-**解决方案**: 按照上述安装步骤安装FFmpeg
 
-### 2. 模型文件不存在
+服务器启动后将运行在 `http://localhost:8080`
+
+## 📡 API 文档
+
+### 端点总览
+
+| 方法 | 端点 | 描述 |
+|------|------|------|
+| GET | `/health` | 健康检查 |
+| GET | `/` | API 信息 |
+| POST | `/api/v1/transcribe` | 转录音频 |
+| GET | `/api/v1/download/:filename` | 下载输出文件 |
+
+### 1. 健康检查
+
+```bash
+curl http://localhost:8080/health
 ```
-错误: 模型文件不存在: models/ggml-base.bin
+
+响应:
+```json
+{
+  "status": "ok",
+  "version": "1.0.0",
+  "time": "2026-02-27T10:00:00Z"
+}
 ```
-**解决方案**: 运行模型下载脚本或手动下载模型文件
 
-### 3. 编译错误
+### 2. 转录音频
+
+**请求**
+
+```bash
+curl -X POST http://localhost:8080/api/v1/transcribe \
+  -F "file=@test_data/test.mp3" \
+  -F "language=auto" \
+  -F "output_type=json"
 ```
-错误: C编译器未找到
+
+**参数说明**
+
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| file | File | ✅ | 音频文件 |
+| language | String | ❌ | 语言代码（auto/zh/en等），默认 auto |
+| output_type | String | ❌ | 输出格式（json/srt/txt），默认 json |
+| translate | Boolean | ❌ | 是否翻译为英文，默认 false |
+
+**响应示例**
+
+```json
+{
+  "success": true,
+  "message": "转录成功",
+  "data": {
+    "task_id": "task_1709011200000000000",
+    "filename": "uploads/test.mp3",
+    "language": "zh",
+    "duration_seconds": 10.5,
+    "text": "这是完整的转录文本",
+    "segments": [
+      {
+        "index": 1,
+        "start": 0.0,
+        "end": 3.5,
+        "text": "这是第一段"
+      }
+    ],
+    "output_file": "outputs/test.srt",
+    "process_time_seconds": 2.5
+  }
+}
 ```
-**解决方案**: 
-- macOS: `xcode-select --install`
-- Linux: `sudo apt-get install build-essential`
-- Windows: 安装MinGW-w64
 
-### 4. 音频识别不准确
-- 尝试使用更大的模型（small、medium、large）
-- 确保音频质量良好
-- 指定正确的语言代码
+### 3. 下载文件
 
-## 性能优化建议
+```bash
+curl -O http://localhost:8080/api/v1/download/test.srt
+```
 
-1. **使用适当的模型**: 根据准确度和速度需求选择合适的模型
-2. **调整线程数**: 使用`-threads`参数设置为CPU核心数
-3. **音频质量**: 使用清晰、低噪音的音频文件可提高准确度
+### 测试 API
 
-## 技术实现
+使用提供的测试脚本：
 
-本项目使用以下技术：
+```bash
+./test_api.sh
+```
 
-- **Go语言**: 主程序语言
-- **whisper.cpp**: OpenAI Whisper模型的C++实现
-- **FFmpeg**: 音频格式转换
-- **cgo**: Go与C/C++互操作
+## ⚙️ 配置说明
 
-## 参考资源
+### 环境变量
 
-- [whisper.cpp GitHub](https://github.com/ggerganov/whisper.cpp)
+复制示例文件并编辑：
+
+```bash
+cp .env.example .env
+```
+
+**可配置项**
+
+| 变量名 | 说明 | 默认值 |
+|--------|------|--------|
+| `SERVER_PORT` | 服务器端口 | 8080 |
+| `GIN_MODE` | 运行模式（debug/release） | debug |
+| `WHISPER_MODEL_PATH` | 模型文件路径 | models/ggml-base.bin |
+| `WHISPER_THREADS` | 处理线程数 | 4 |
+| `MAX_FILE_SIZE` | 最大文件大小（字节） | 104857600 (100MB) |
+| `UPLOAD_DIR` | 上传目录 | uploads |
+| `OUTPUT_DIR` | 输出目录 | outputs |
+
+### Whisper 模型选择
+
+| 模型 | 大小 | 内存需求 | 速度 | 精度 |
+|------|------|----------|------|------|
+| tiny | 39M | ~1 GB | ⚡⚡⚡⚡⚡ | ⭐⭐ |
+| base | 74M | ~1 GB | ⚡⚡⚡⚡ | ⭐⭐⭐ |
+| small | 244M | ~2 GB | ⚡⚡⚡ | ⭐⭐⭐⭐ |
+| medium | 769M | ~5 GB | ⚡⚡ | ⭐⭐⭐⭐⭐ |
+| large | 1550M | ~10 GB | ⚡ | ⭐⭐⭐⭐⭐ |
+
+**推荐**: `base` 或 `small` 模型，平衡速度和精度。
+
+## 🧪 测试
+
+```bash
+# 运行所有测试
+make test
+
+# 测试覆盖率
+make test-cover
+
+# API 功能测试
+./test_api.sh
+```
+
+## 📚 文档
+
+- **[DOCKER_QUICKSTART.md](DOCKER_QUICKSTART.md)** - Docker 快速开始
+- **[docker/README.md](docker/README.md)** - Docker 部署详细指南  
+- **[ARCHITECTURE.md](docs/ARCHITECTURE.md)** - 架构设计详解
+- **[QUICKSTART.md](docs/QUICKSTART.md)** - 快速入门指南
+- **[API_REFERENCE.md](docs/API_REFERENCE.md)** - API 参考手册
+- **[PROJECT_SUMMARY.md](docs/PROJECT_SUMMARY.md)** - 项目重构总结
+- **[legacy/README.md](legacy/README.md)** - 旧版 CLI 工具说明
+
+## 🛠️ 开发
+
+### Makefile 命令
+
+```bash
+make help          # 显示所有命令
+make setup         # 项目初始化
+make build         # 构建应用
+make run           # 运行服务器
+make test          # 运行测试
+make clean         # 清理构建文件
+make fmt           # 格式化代码
+make lint          # 代码检查
+
+# Docker 命令
+make docker-build      # 构建 CPU 版本镜像
+make docker-build-gpu  # 构建 GPU 版本镜像
+make docker-up         # 启动 CPU 版本服务
+make docker-up-gpu     # 启动 GPU 版本服务
+make docker-down       # 停止服务
+make docker-logs       # 查看日志
+make docker-clean      # 清理容器和镜像
+```
+
+### 代码规范
+
+- 遵循 Go 官方代码风格
+- 使用 `gofmt` 格式化代码
+- 通过 `golangci-lint` 检查
+
+## 🚀 生产部署
+
+### Docker 部署（推荐）
+
+#### CPU 版本
+
+```bash
+# 使用 docker-compose
+docker compose up -d --build
+
+# 或使用管理脚本
+./scripts/docker.sh build && ./scripts/docker.sh up
+```
+
+#### GPU 版本
+
+```bash
+# 使用 docker-compose
+docker compose -f docker-compose.gpu.yml up -d --build
+
+# 或使用管理脚本
+./scripts/docker.sh build-gpu && ./scripts/docker.sh up-gpu
+```
+
+详细部署文档：[docker/README.md](docker/README.md)
+
+### 手动构建
+
+```bash
+# 设置为 release 模式
+export GIN_MODE=release
+
+# 构建
+make build
+```
+
+### Docker 部署
+
+```bash
+# 构建镜像
+make docker-build
+
+# 运行容器
+make docker-run
+```
+
+### Systemd 服务
+
+创建 `/etc/systemd/system/whisper-api.service`:
+
+```ini
+[Unit]
+Description=Whisper API Server
+After=network.target
+
+[Service]
+Type=simple
+User=whisper
+WorkingDirectory=/opt/whisper-api
+ExecStart=/opt/whisper-api/bin/whisper-server
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
+```
+
+## 🤝 贡献
+
+欢迎提交 Issue 和 Pull Request！
+
+## 📄 许可证
+
+[MIT License](LICENSE)
+
+## 🔗 相关链接
+
+- [Whisper.cpp](https://github.com/ggerganov/whisper.cpp)
+- [Gin Web Framework](https://github.com/gin-gonic/gin)
 - [OpenAI Whisper](https://github.com/openai/whisper)
-- [whisper.cpp Go绑定](https://github.com/ggerganov/whisper.cpp/tree/master/bindings/go)
 
-## 许可证
+## 💡 常见问题
 
-本项目遵循MIT许可证。whisper.cpp也使用MIT许可证。
+### Q: 如何切换模型？
 
-## 贡献
+A: 修改 `.env` 文件中的 `WHISPER_MODEL_PATH` 或设置环境变量。
 
-欢迎提交Issue和Pull Request！
+### Q: 支持哪些音频格式？
+
+A: MP3, WAV, M4A, AAC, FLAC, OGG
+
+### Q: 如何提高转录速度？
+
+A: 使用更小的模型（tiny/base）或增加 `WHISPER_THREADS` 值。
+
+### Q: 旧版 CLI 工具还能用吗？
+
+A: 可以，请查看 `legacy/` 目录中的文档。
+
+---
+
+<div align="center">
+
+**Made with ❤️ using Go and Whisper.cpp**
+
+[⬆ 回到顶部](#whisper-api-server)
+
+</div>
