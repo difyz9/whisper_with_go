@@ -1,0 +1,182 @@
+package service
+
+import (
+	"fmt"
+	"os"
+	"strings"
+	"time"
+
+	whisper "github.com/ggerganov/whisper.cpp/bindings/go/pkg/whisper"
+	"whisper_with_go/config"
+	"whisper_with_go/internal/model"
+	"whisper_with_go/pkg/utils"
+)
+
+// WhisperService Whisper 服务接口
+type WhisperService interface {
+	Transcribe(audioPath, language, outputType string, translate bool) (*model.TranscribeResponse, error)
+}
+
+type whisperService struct {
+	config *config.Config
+}
+
+// NewWhisperService 创建新的 Whisper 服务实例
+func NewWhisperService(cfg *config.Config) WhisperService {
+	return &whisperService{
+		config: cfg,
+	}
+}
+
+// Transcribe 执行语音转录
+func (s *whisperService) Transcribe(audioPath, language, outputType string, translate bool) (*model.TranscribeResponse, error) {
+	startTime := time.Now()
+
+	// 1. 转换音频格式
+	wavPath, err := utils.ConvertToWAV(audioPath)
+	if err != nil {
+		return nil, fmt.Errorf("音频转换失败: %v", err)
+	}
+	defer os.Remove(wavPath) // 清理临时文件
+
+	// 2. 加载 Whisper 模型
+	whisperModel, err := whisper.New(s.config.Whisper.ModelPath)
+	if err != nil {
+		return nil, fmt.Errorf("加载模型失败: %v", err)
+	}
+	defer whisperModel.Close()
+
+	// 3. 读取音频样本
+	samples, err := utils.ReadWAVFile(wavPath)
+	if err != nil {
+		return nil, fmt.Errorf("读取音频失败: %v", err)
+	}
+
+	// 4. 创建处理上下文
+	context, err := whisperModel.NewContext()
+	if err != nil {
+		return nil, fmt.Errorf("创建上下文失败: %v", err)
+	}
+
+	// 5. 配置参数
+	if language != "" && language != "auto" {
+		if err := context.SetLanguage(language); err != nil {
+			return nil, fmt.Errorf("设置语言失败: %v", err)
+		}
+	}
+	context.SetThreads(uint(s.config.Whisper.Threads))
+	context.SetTranslate(translate)
+
+	// 6. 处理音频
+	if err := context.Process(samples, nil, nil, nil); err != nil {
+		return nil, fmt.Errorf("处理音频失败: %v", err)
+	}
+
+	// 7. 收集转录结果
+	var segments []model.Segment
+	var fullText strings.Builder
+
+	for {
+		segment, err := context.NextSegment()
+		if err != nil {
+			break
+		}
+
+		text := strings.TrimSpace(segment.Text)
+		if text == "" {
+			continue
+		}
+
+		segments = append(segments, model.Segment{
+			Index: len(segments) + 1,
+			Start: segment.Start.Seconds(),
+			End:   segment.End.Seconds(),
+			Text:  text,
+		})
+
+		fullText.WriteString(text)
+		fullText.WriteString(" ")
+	}
+
+	// 8. 生成输出文件（如果需要）
+	var outputFile string
+	if outputType == "srt" || outputType == "txt" {
+		outputFile, err = s.saveOutput(audioPath, segments, outputType)
+		if err != nil {
+			return nil, fmt.Errorf("保存输出文件失败: %v", err)
+		}
+	}
+
+	// 9. 构建响应
+	response := &model.TranscribeResponse{
+		TaskID:      generateTaskID(),
+		Filename:    audioPath,
+		Language:    language,
+		Text:        strings.TrimSpace(fullText.String()),
+		ProcessTime: time.Since(startTime).Seconds(),
+		OutputFile:  outputFile,
+	}
+
+	// 根据输出类型决定是否包含详细的片段信息
+	if outputType == "json" {
+		response.Segments = segments
+	}
+
+	// 计算音频时长
+	if len(segments) > 0 {
+		response.Duration = segments[len(segments)-1].End
+	}
+
+	return response, nil
+}
+
+// saveOutput 保存输出文件
+func (s *whisperService) saveOutput(audioPath string, segments []model.Segment, outputType string) (string, error) {
+	// 确保输出目录存在
+	if err := utils.EnsureDirExists(s.config.Upload.OutputDir); err != nil {
+		return "", err
+	}
+
+	// 生成输出文件路径 - 只提取文件名，不包含目录
+	filename := filepath.Base(audioPath)
+	// 去掉扩展名
+	baseName := strings.TrimSuffix(filename, filepath.Ext(filename))
+	// 去掉 _temp 后缀（如果有）
+	baseName = strings.TrimSuffix(baseName, "_temp")
+	outputPath := filepath.Join(s.config.Upload.OutputDir, fmt.Sprintf("%s.%s", baseName, outputType))
+
+	// 创建输出文件
+	file, err := os.Create(outputPath)
+	if err != nil {
+		return "", err
+	}
+	defer file.Close()
+
+	// 根据格式写入内容
+	switch outputType {
+	case "srt":
+		for _, segment := range segments {
+			fmt.Fprintf(file, "%d\n", segment.Index)
+			fmt.Fprintf(file, "%s --> %s\n",
+				utils.FormatSRTTime(time.Duration(segment.Start*float64(time.Second))),
+				utils.FormatSRTTime(time.Duration(segment.End*float64(time.Second))),
+			)
+			fmt.Fprintf(file, "%s\n\n", segment.Text)
+		}
+	case "txt":
+		for _, segment := range segments {
+			fmt.Fprintf(file, "[%s --> %s] %s\n",
+				utils.FormatTimestamp(time.Duration(segment.Start*float64(time.Second))),
+				utils.FormatTimestamp(time.Duration(segment.End*float64(time.Second))),
+				segment.Text,
+			)
+		}
+	}
+
+	return outputPath, nil
+}
+
+// generateTaskID 生成任务ID
+func generateTaskID() string {
+	return fmt.Sprintf("task_%d", time.Now().UnixNano())
+}
