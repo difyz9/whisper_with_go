@@ -101,6 +101,70 @@ docker compose -f docker-compose.gpu.yml up -d --build
 
 ## 📦 镜像说明
 
+### 基础环境镜像（推荐复用）
+
+仓库提供了一个单独的基础环境镜像定义 [Dockerfile.base](../Dockerfile.base)，用于预构建以下运行环境：
+
+- Go 1.23.4
+- FFmpeg
+- `whisper.cpp`
+- CGO 编译所需头文件和动态库
+- 多平台支持：`linux/amd64`、`linux/arm64`
+
+这个镜像适合下面这种场景：
+
+- CI 先构建并发布基础镜像到 GHCR
+- 业务机器只需要 `docker pull`
+- 启动时把 Go 项目目录挂载进容器，直接 `go run` 或 `go build`
+
+示例：
+
+```bash
+docker pull ghcr.io/<your-org-or-user>/whisper-go-base:latest
+
+docker run --rm -it \
+  -p 8080:8080 \
+  -v $(pwd):/workspace \
+  -v $(pwd)/models:/workspace/models \
+  -v $(pwd)/uploads:/workspace/uploads \
+  -v $(pwd)/outputs:/workspace/outputs \
+  -w /workspace \
+  ghcr.io/<your-org-or-user>/whisper-go-base:latest \
+  bash -lc 'go mod download && go run cmd/server/main.go'
+```
+
+对应的 GitHub Actions 工作流是 [build-base-image.yml](../.github/workflows/build-base-image.yml)。
+
+### 配置 GitHub Actions
+
+首次使用时，按下面步骤配置：
+
+1. 将仓库推送到 GitHub。
+2. 确认仓库启用了 GitHub Actions。
+3. 在 `Settings -> Actions -> General` 中允许工作流写入 packages。
+4. 运行 [build-base-image.yml](../.github/workflows/build-base-image.yml)，或向 `main` 推送对 `Dockerfile.base`、workflow、文档的更新。
+
+工作流默认发布以下标签：
+
+- `ghcr.io/<github-owner>/whisper-go-base:latest`
+- `ghcr.io/<github-owner>/whisper-go-base:base`
+- `ghcr.io/<github-owner>/whisper-go-base:sha-<commit>`
+
+手动触发时支持传入：
+
+- `image_name`: 自定义镜像名
+- `platforms`: 例如 `linux/amd64,linux/arm64`
+- `push_latest`: 是否推送 `latest`
+
+仓库也提供了一个直接消费该基础镜像的编排文件 [docker-compose.base.yml](../docker-compose.base.yml)，启动前只需要指定镜像地址：
+
+```bash
+WHISPER_BASE_IMAGE=ghcr.io/<your-org-or-user>/whisper-go-base:latest \
+docker compose -f docker-compose.base.yml up
+```
+
+这个 compose 文件要求显式设置 `WHISPER_BASE_IMAGE`，避免默认值写成占位符后造成拉取失败。
+
 ### CPU 版本镜像
 
 - **基础镜像**: Ubuntu 22.04

@@ -114,6 +114,72 @@ bash download_model.sh
 
 详细说明：[Docker 快速开始](DOCKER_QUICKSTART.md) | [Docker 部署指南](docker/README.md)
 
+#### 拉取预构建基础镜像运行
+
+如果你只想复用已经构建好的 Whisper 基础环境，而不是每次都重新编译 `whisper.cpp`，可以直接拉取 GitHub Actions 发布的基础镜像，再把当前 Go 项目挂载进去运行。
+
+```bash
+# 拉取基础镜像
+docker pull ghcr.io/<your-org-or-user>/whisper-go-base:latest
+
+# 在基础镜像中直接运行当前项目
+docker run --rm -it \
+  -p 8080:8080 \
+  -v $(pwd):/workspace \
+  -v $(pwd)/models:/workspace/models \
+  -v $(pwd)/uploads:/workspace/uploads \
+  -v $(pwd)/outputs:/workspace/outputs \
+  -w /workspace \
+  ghcr.io/<your-org-or-user>/whisper-go-base:latest \
+  bash -lc 'go mod download && go run cmd/server/main.go'
+```
+
+这个基础镜像已经内置：
+
+- Go 1.23.4
+- FFmpeg
+- `whisper.cpp` 及其动态库
+- CGO 相关环境变量
+- 多平台镜像清单：`linux/amd64`、`linux/arm64`
+
+如果你要发布这个基础镜像，仓库内已经提供 GitHub Actions 工作流 [build-base-image.yml](.github/workflows/build-base-image.yml)。
+
+GitHub Actions 首次使用时，按下面配置：
+
+1. 把仓库推到 GitHub。
+2. 确认 Actions 已启用。
+3. 打开仓库 `Settings -> Actions -> General`，确保工作流允许读写包权限。
+4. 打开仓库 `Settings -> Packages` 或首次发布后在 GHCR 中把镜像可见性改成你需要的范围。
+5. 直接运行 [build-base-image.yml](.github/workflows/build-base-image.yml)，或者提交 `Dockerfile.base` / workflow 变更到 `main` 自动触发。
+
+这个 workflow 默认会发布到：
+
+- `ghcr.io/<github-owner>/whisper-go-base:latest`
+- `ghcr.io/<github-owner>/whisper-go-base:base`
+- `ghcr.io/<github-owner>/whisper-go-base:sha-<commit>`
+
+如果你想手动指定镜像名或平台，在 GitHub 的 `Actions -> build-whisper-base-image -> Run workflow` 中填写：
+
+- `image_name`: 例如 `<your-org-or-user>/whisper-go-base`
+- `platforms`: 例如 `linux/amd64,linux/arm64`
+- `push_latest`: 是否同时推送 `latest`
+
+如果你更希望直接用 Compose 启动，可以使用 [docker-compose.base.yml](docker-compose.base.yml)：
+
+```bash
+WHISPER_BASE_IMAGE=ghcr.io/<your-org-or-user>/whisper-go-base:latest \
+docker compose -f docker-compose.base.yml up
+```
+
+注意：`docker-compose.base.yml` 现在要求你显式传入 `WHISPER_BASE_IMAGE`，这样可以避免误拉取占位镜像地址。
+
+如果你要明确拉某个平台，可以这样：
+
+```bash
+docker pull --platform linux/amd64 ghcr.io/<your-org-or-user>/whisper-go-base:latest
+docker pull --platform linux/arm64 ghcr.io/<your-org-or-user>/whisper-go-base:latest
+```
+
 #### 💻 本地运行方式
 
 #### 方式 1: 使用启动脚本（推荐）

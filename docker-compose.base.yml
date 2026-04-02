@@ -1,0 +1,30 @@
+version: '3.8'
+
+services:
+  whisper-api-base:
+    image: ${WHISPER_BASE_IMAGE:?Set WHISPER_BASE_IMAGE to your published GHCR image, for example ghcr.io/<owner>/whisper-go-base:latest}
+    container_name: whisper-api-base
+    working_dir: /workspace
+    command: bash -lc "go mod download && go run cmd/server/main.go"
+    ports:
+      - "8080:8080"
+    volumes:
+      - .:/workspace
+      - ./models:/workspace/models
+      - ./uploads:/workspace/uploads
+      - ./outputs:/workspace/outputs
+      - whisper-go-mod:/go/pkg/mod
+      - whisper-go-cache:/root/.cache/go-build
+    environment:
+      SERVER_PORT: 8080
+      GIN_MODE: release
+      WHISPER_MODEL_PATH: models/ggml-base.bin
+      WHISPER_THREADS: 4
+      MAX_FILE_SIZE: 104857600
+      UPLOAD_DIR: uploads
+      OUTPUT_DIR: outputs
+    restart: unless-stopped
+
+volumes:
+  whisper-go-mod:
+  whisper-go-cache:
