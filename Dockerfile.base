@@ -45,8 +45,7 @@ COPY --from=whisper-builder /opt/whisper.cpp/build/ggml/src/libggml.so /usr/loca
 COPY --from=whisper-builder /opt/whisper.cpp/build/ggml/src/libggml-base.so /usr/local/lib/libggml-base.so
 COPY --from=whisper-builder /opt/whisper.cpp/build/ggml/src/libggml-cpu.so /usr/local/lib/libggml-cpu.so
 
-RUN ldconfig && \
-    useradd -m -u 1000 whisper && \
+RUN useradd -m -u 1000 whisper && \
     mkdir -p /workspace /models /tmp/whisper /go/pkg/mod /root/.cache/go-build && \
     chown -R whisper:whisper /workspace /models /tmp/whisper
 
@@ -62,3 +61,8 @@ ENV GOCACHE=/root/.cache/go-build
 WORKDIR /workspace
 
 CMD ["bash"]
+
+
+# 如果是本地先验证，先只测单平台更稳，比如：
+# docker buildx build --platform linux/amd64 -f Dockerfile.base .
+# docker buildx build --platform linux/arm64 -f Dockerfile.base .
