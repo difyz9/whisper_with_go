@@ -105,8 +105,8 @@ whisper_with_go/
 # 1. 下载模型
 bash download_model.sh
 
-# 2. 启动服务（CPU 版本）
-./scripts/docker.sh build && ./scripts/docker.sh up
+# 2. 一键启动当前项目（默认使用预构建基础镜像）
+docker compose up -d
 
 # 或启动 GPU 版本（需要 NVIDIA GPU）
 ./scripts/docker.sh build-gpu && ./scripts/docker.sh up-gpu
@@ -116,11 +116,11 @@ bash download_model.sh
 
 #### 拉取预构建基础镜像运行
 
-如果你只想复用已经构建好的 Whisper 基础环境，而不是每次都重新编译 `whisper.cpp`，可以直接拉取 GitHub Actions 发布的基础镜像，再把当前 Go 项目挂载进去运行。
+如果你只想复用已经构建好的 Whisper 基础环境，而不是每次都重新编译 `whisper.cpp`，可以直接拉取 GitHub Actions 发布到 Docker Hub 的基础镜像，再把当前 Go 项目挂载进去运行。
 
 ```bash
 # 拉取基础镜像
-docker pull ghcr.io/<your-org-or-user>/whisper-go-base:latest
+docker pull difyz9/whisper-go-base:latest
 
 # 在基础镜像中直接运行当前项目
 docker run --rm -it \
@@ -130,7 +130,7 @@ docker run --rm -it \
   -v $(pwd)/uploads:/workspace/uploads \
   -v $(pwd)/outputs:/workspace/outputs \
   -w /workspace \
-  ghcr.io/<your-org-or-user>/whisper-go-base:latest \
+  difyz9/whisper-go-base:latest \
   bash -lc 'go mod download && go run cmd/server/main.go'
 ```
 
@@ -148,36 +148,81 @@ GitHub Actions 首次使用时，按下面配置：
 
 1. 把仓库推到 GitHub。
 2. 确认 Actions 已启用。
-3. 打开仓库 `Settings -> Actions -> General`，确保工作流允许读写包权限。
-4. 打开仓库 `Settings -> Packages` 或首次发布后在 GHCR 中把镜像可见性改成你需要的范围。
-5. 直接运行 [build-base-image.yml](.github/workflows/build-base-image.yml)，或者提交 `Dockerfile.base` / workflow 变更到 `main` 自动触发。
+3. 在仓库 `Settings -> Secrets and variables -> Actions` 中添加 `DOCKERHUB_USERNAME` 和 `DOCKERHUB_TOKEN`。
+4. 在 Docker Hub 预先创建仓库 `difyz9/whisper-go-base`，或把 workflow 中的镜像名改成你的仓库名。
+5. 给仓库打 tag，例如 `v1.0.0`，再 push tag 触发构建。
 
 这个 workflow 默认会发布到：
 
-- `ghcr.io/<github-owner>/whisper-go-base:latest`
-- `ghcr.io/<github-owner>/whisper-go-base:base`
-- `ghcr.io/<github-owner>/whisper-go-base:sha-<commit>`
+- `difyz9/whisper-go-base:v1.0.0`
+- `difyz9/whisper-go-base:1.0.0`
+- `difyz9/whisper-go-base:latest`
 
-如果你想手动指定镜像名或平台，在 GitHub 的 `Actions -> build-whisper-base-image -> Run workflow` 中填写：
+如果你想手动触发，在 GitHub 的 `Actions -> docker-hub-base-release -> Run workflow` 中填写：
 
-- `image_name`: 例如 `<your-org-or-user>/whisper-go-base`
+- `tag`: 例如 `v1.0.0`
 - `platforms`: 例如 `linux/amd64,linux/arm64`
 - `push_latest`: 是否同时推送 `latest`
 
-如果你更希望直接用 Compose 启动，可以使用 [docker-compose.base.yml](docker-compose.base.yml)：
+现在根目录默认的 [docker-compose.yml](docker-compose.yml) 已经支持直接运行当前项目：
 
 ```bash
-WHISPER_BASE_IMAGE=ghcr.io/<your-org-or-user>/whisper-go-base:latest \
+docker compose up -d
+```
+
+默认会读取 [\.env](.env) 中的 `WHISPER_BASE_IMAGE`，当前预设为：
+
+```bash
+difyz9/whisper-go-base:latest
+```
+
+如果你仍然希望显式使用基础镜像编排文件，也可以使用 [docker-compose.base.yml](docker-compose.base.yml)：
+
+```bash
+WHISPER_BASE_IMAGE=difyz9/whisper-go-base:latest \
 docker compose -f docker-compose.base.yml up
 ```
 
 注意：`docker-compose.base.yml` 现在要求你显式传入 `WHISPER_BASE_IMAGE`，这样可以避免误拉取占位镜像地址。
 
+如果你在 Windows PowerShell 下想一键启动，可以直接使用脚本 [scripts/compose-base.ps1](scripts/compose-base.ps1)：
+
+```powershell
+.\scripts\compose-base.ps1 -Action up -Image difyz9/whisper-go-base:latest
+```
+
+常用命令：
+
+```powershell
+.\scripts\compose-base.ps1 -Action up -Image difyz9/whisper-go-base:latest
+.\scripts\compose-base.ps1 -Action logs
+.\scripts\compose-base.ps1 -Action ps
+.\scripts\compose-base.ps1 -Action down
+```
+
+如果你在 Linux 或 macOS 下使用，可以直接运行 [scripts/compose-base.sh](scripts/compose-base.sh)：
+
+```bash
+chmod +x ./scripts/compose-base.sh
+./scripts/compose-base.sh --action up --image difyz9/whisper-go-base:latest
+```
+
+常用命令：
+
+```bash
+./scripts/compose-base.sh --action up --image difyz9/whisper-go-base:latest
+./scripts/compose-base.sh --action logs
+./scripts/compose-base.sh --action ps
+./scripts/compose-base.sh --action down
+```
+
+如果你还需要保留“本地构建 CPU 镜像再启动”的旧流程，现在对应编排文件是 [docker-compose.build.yml](docker-compose.build.yml)，管理脚本 [scripts/docker.sh](scripts/docker.sh) 已经切换到这个文件。
+
 如果你要明确拉某个平台，可以这样：
 
 ```bash
-docker pull --platform linux/amd64 ghcr.io/<your-org-or-user>/whisper-go-base:latest
-docker pull --platform linux/arm64 ghcr.io/<your-org-or-user>/whisper-go-base:latest
+docker pull --platform linux/amd64 difyz9/whisper-go-base:latest
+docker pull --platform linux/arm64 difyz9/whisper-go-base:latest
 ```
 
 #### 💻 本地运行方式

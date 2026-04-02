@@ -2,7 +2,7 @@ version: '3.8'
 
 services:
   whisper-api-base:
-    image: ${WHISPER_BASE_IMAGE:?Set WHISPER_BASE_IMAGE to your published GHCR image, for example ghcr.io/<owner>/whisper-go-base:latest}
+    image: ${WHISPER_BASE_IMAGE:?Set WHISPER_BASE_IMAGE to your published Docker Hub image, for example difyz9/whisper-go-base:latest}
     container_name: whisper-api-base
     working_dir: /workspace
     command: bash -lc "go mod download && go run cmd/server/main.go"

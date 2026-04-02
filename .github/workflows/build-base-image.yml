@@ -1,19 +1,13 @@
-name: build-whisper-base-image
+name: docker-hub-base-release
 
 on:
   push:
-    branches:
-      - main
-    paths:
-      - Dockerfile.base
-      - docker-compose.base.yml
-      - .github/workflows/build-base-image.yml
-      - README.md
-      - docker/README.md
+    tags:
+      - 'v*'
   workflow_dispatch:
     inputs:
-      image_name:
-        description: Override image name after ghcr.io/ (for example owner/whisper-go-base)
+      tag:
+        description: Tag to build, for example v1.0.0. Leave empty to use the current ref tag.
         required: false
         type: string
         default: ''
@@ -23,21 +17,19 @@ on:
         type: string
         default: linux/amd64,linux/arm64
       push_latest:
-        description: Also publish the latest tag
+        description: Also publish the latest tag to Docker Hub
         required: false
         type: boolean
         default: true
 
 env:
-  REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository_owner }}/whisper-go-base
+  IMAGE_NAME: difyz9/whisper-go-base
 
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      packages: write
 
     env:
       DEFAULT_PLATFORMS: linux/amd64,linux/arm64
@@ -46,15 +38,22 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set image name
-        id: image
+      - name: Resolve release tag
+        id: release
         shell: bash
         run: |
-          if [ -n "${{ inputs.image_name }}" ]; then
-            echo "value=${{ inputs.image_name }}" >> "$GITHUB_OUTPUT"
+          if [ -n "${{ inputs.tag }}" ]; then
+            TAG="${{ inputs.tag }}"
+          elif [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+            TAG="${GITHUB_REF#refs/tags/}"
           else
-            echo "value=${{ env.IMAGE_NAME }}" >> "$GITHUB_OUTPUT"
+            echo "No tag provided and workflow was not triggered by a tag." >&2
+            exit 1
           fi
+
+          VERSION="${TAG#v}"
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
 
       - name: Set platforms
         id: platforms
@@ -66,37 +65,141 @@ jobs:
             echo "value=${{ env.DEFAULT_PLATFORMS }}" >> "$GITHUB_OUTPUT"
           fi
 
+      - name: Write release build context
+        shell: bash
+        run: |
+          mkdir -p ./.docker-release
+
+          cat > ./.docker-release/build.sh <<'SCRIPT'
+          #!/usr/bin/env bash
+          set -euo pipefail
+
+          IMAGE_TAG="${1:?missing image tag}"
+          BUILD_DIR="./.docker-release"
+
+          cat > "${BUILD_DIR}/Dockerfile" <<'DOCKERFILE'
+          ARG GO_VERSION=1.23.4
+
+          FROM --platform=$TARGETPLATFORM golang:${GO_VERSION}-bullseye AS go-dist
+
+          FROM --platform=$TARGETPLATFORM ubuntu:22.04 AS whisper-builder
+
+          ENV DEBIAN_FRONTEND=noninteractive
+          ARG WHISPER_CPP_REPO=https://github.com/ggerganov/whisper.cpp.git
+          ARG WHISPER_CPP_REF=master
+
+          RUN apt-get update && apt-get install -y \
+              build-essential \
+              cmake \
+              curl \
+              ffmpeg \
+              git \
+              pkg-config \
+              wget \
+              && rm -rf /var/lib/apt/lists/*
+
+          WORKDIR /opt
+          RUN git clone --depth 1 --branch ${WHISPER_CPP_REF} ${WHISPER_CPP_REPO} whisper.cpp && \
+              cd whisper.cpp && \
+              cmake -B build -DCMAKE_BUILD_TYPE=Release && \
+              cmake --build build --config Release -j"$(nproc)"
+
+          FROM --platform=$TARGETPLATFORM ubuntu:22.04
+
+          ENV DEBIAN_FRONTEND=noninteractive
+
+          RUN apt-get update && apt-get install -y \
+              build-essential \
+              ca-certificates \
+              curl \
+              ffmpeg \
+              git \
+              pkg-config \
+              && rm -rf /var/lib/apt/lists/*
+
+          COPY --from=go-dist /usr/local/go /usr/local/go
+          COPY --from=whisper-builder /opt/whisper.cpp /usr/local/whisper.cpp
+          COPY --from=whisper-builder /opt/whisper.cpp/include/whisper.h /usr/local/include/whisper.h
+          COPY --from=whisper-builder /opt/whisper.cpp/build/src/libwhisper.so /usr/local/lib/libwhisper.so
+          COPY --from=whisper-builder /opt/whisper.cpp/build/ggml/src/libggml.so /usr/local/lib/libggml.so
+          COPY --from=whisper-builder /opt/whisper.cpp/build/ggml/src/libggml-base.so /usr/local/lib/libggml-base.so
+          COPY --from=whisper-builder /opt/whisper.cpp/build/ggml/src/libggml-cpu.so /usr/local/lib/libggml-cpu.so
+
+          RUN useradd -m -u 1000 whisper && \
+              mkdir -p /workspace /models /tmp/whisper /go/pkg/mod /root/.cache/go-build && \
+              chown -R whisper:whisper /workspace /models /tmp/whisper
+
+          ENV PATH=/usr/local/go/bin:${PATH}
+          ENV CGO_ENABLED=1
+          ENV CGO_CFLAGS=-I/usr/local/include
+          ENV CGO_LDFLAGS=-L/usr/local/lib
+          ENV LD_LIBRARY_PATH=/usr/local/lib
+          ENV WHISPER_CPP_PATH=/usr/local/whisper.cpp
+          ENV GOMODCACHE=/go/pkg/mod
+          ENV GOCACHE=/root/.cache/go-build
+
+          WORKDIR /workspace
+
+          CMD ["bash"]
+          DOCKERFILE
+
+          chmod +x "${BUILD_DIR}/build.sh"
+          printf 'Prepared inline Dockerfile for %s\n' "${IMAGE_TAG}"
+          SCRIPT
+
+          chmod +x ./.docker-release/build.sh
+          ./.docker-release/build.sh "${{ steps.release.outputs.tag }}"
+
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Log in to GitHub Container Registry
+      - name: Log in to Docker Hub
         uses: docker/login-action@v3
         with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Extract Docker metadata
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.REGISTRY }}/${{ steps.image.outputs.value }}
+          images: ${{ env.IMAGE_NAME }}
           tags: |
-            type=sha
-            type=raw,value=base
-            type=raw,value=latest,enable=${{ github.event_name == 'push' || inputs.push_latest }}
+            type=raw,value=${{ steps.release.outputs.tag }}
+            type=raw,value=${{ steps.release.outputs.version }}
+            type=raw,value=latest,enable=${{ inputs.push_latest != false }}
 
-      - name: Build and push base image
+      - name: Build release image with inline Dockerfile
+        shell: bash
+        run: |
+          ls -lah ./.docker-release
+          sed -n '1,220p' ./.docker-release/Dockerfile
+
+      - name: Build and push multi-arch image
         uses: docker/build-push-action@v6
         with:
-          context: .
-          file: ./Dockerfile.base
+          context: ./.docker-release
+          file: ./.docker-release/Dockerfile
           push: true
           platforms: ${{ steps.platforms.outputs.value }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      - name: Write summary
+        shell: bash
+        run: |
+          {
+            echo "### Docker Hub image published"
+            echo ""
+            echo "| Key | Value |"
+            echo "| --- | ----- |"
+            echo "| Image | ${{ env.IMAGE_NAME }} |"
+            echo "| Git tag | ${{ steps.release.outputs.tag }} |"
+            echo "| Docker tags | ${{ steps.meta.outputs.tags }} |"
+            echo "| Platforms | ${{ steps.platforms.outputs.value }} |"
+          } >> "$GITHUB_STEP_SUMMARY"

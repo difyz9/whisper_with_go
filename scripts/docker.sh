@@ -100,7 +100,7 @@ build_gpu() {
 up() {
     check_model
     printf "${GREEN}正在启动 CPU 版本服务...${NC}\n"
-    docker compose up -d
+    docker compose -f docker-compose.build.yml up -d
     printf "${GREEN}✓ 服务已启动${NC}\n"
     printf "访问: http://localhost:8080\n"
     printf "健康检查: http://localhost:8080/health\n"
@@ -120,6 +120,7 @@ up_gpu() {
 down() {
     printf "${YELLOW}正在停止服务...${NC}\n"
     docker compose down 2>/dev/null || true
+    docker compose -f docker-compose.build.yml down 2>/dev/null || true
     docker compose -f docker-compose.gpu.yml down 2>/dev/null || true
     printf "${GREEN}✓ 服务已停止${NC}\n"
 }
@@ -136,6 +137,8 @@ logs() {
     if docker ps --format '{{.Names}}' | grep -q whisper-api-gpu; then
         docker compose -f docker-compose.gpu.yml logs -f
     elif docker ps --format '{{.Names}}' | grep -q whisper-api-cpu; then
+        docker compose -f docker-compose.build.yml logs -f
+    elif docker ps --format '{{.Names}}' | grep -q whisper-api; then
         docker compose logs -f
     else
         printf "${RED}没有运行中的服务${NC}\n"

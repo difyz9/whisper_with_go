@@ -113,14 +113,14 @@ docker compose -f docker-compose.gpu.yml up -d --build
 
 这个镜像适合下面这种场景：
 
-- CI 先构建并发布基础镜像到 GHCR
+- CI 先构建并发布基础镜像到 Docker Hub
 - 业务机器只需要 `docker pull`
 - 启动时把 Go 项目目录挂载进容器，直接 `go run` 或 `go build`
 
 示例：
 
 ```bash
-docker pull ghcr.io/<your-org-or-user>/whisper-go-base:latest
+docker pull difyz9/whisper-go-base:latest
 
 docker run --rm -it \
   -p 8080:8080 \
@@ -129,7 +129,7 @@ docker run --rm -it \
   -v $(pwd)/uploads:/workspace/uploads \
   -v $(pwd)/outputs:/workspace/outputs \
   -w /workspace \
-  ghcr.io/<your-org-or-user>/whisper-go-base:latest \
+  difyz9/whisper-go-base:latest \
   bash -lc 'go mod download && go run cmd/server/main.go'
 ```
 
@@ -141,29 +141,57 @@ docker run --rm -it \
 
 1. 将仓库推送到 GitHub。
 2. 确认仓库启用了 GitHub Actions。
-3. 在 `Settings -> Actions -> General` 中允许工作流写入 packages。
-4. 运行 [build-base-image.yml](../.github/workflows/build-base-image.yml)，或向 `main` 推送对 `Dockerfile.base`、workflow、文档的更新。
+3. 在 `Settings -> Secrets and variables -> Actions` 中添加 `DOCKERHUB_USERNAME` 和 `DOCKERHUB_TOKEN`。
+4. 给仓库打 tag，例如 `v1.0.0`，再 push tag 触发镜像构建。
 
 工作流默认发布以下标签：
 
-- `ghcr.io/<github-owner>/whisper-go-base:latest`
-- `ghcr.io/<github-owner>/whisper-go-base:base`
-- `ghcr.io/<github-owner>/whisper-go-base:sha-<commit>`
+- `difyz9/whisper-go-base:v1.0.0`
+- `difyz9/whisper-go-base:1.0.0`
+- `difyz9/whisper-go-base:latest`
 
 手动触发时支持传入：
 
-- `image_name`: 自定义镜像名
+- `tag`: 自定义版本 tag
 - `platforms`: 例如 `linux/amd64,linux/arm64`
 - `push_latest`: 是否推送 `latest`
 
-仓库也提供了一个直接消费该基础镜像的编排文件 [docker-compose.base.yml](../docker-compose.base.yml)，启动前只需要指定镜像地址：
+仓库根目录默认的 [docker-compose.yml](../docker-compose.yml) 已经可以直接一键运行当前项目：
 
 ```bash
-WHISPER_BASE_IMAGE=ghcr.io/<your-org-or-user>/whisper-go-base:latest \
+docker compose up -d
+```
+
+它会读取 [../.env](../.env) 中的 `WHISPER_BASE_IMAGE`，默认值已经指向当前已发布的基础镜像。
+
+如果你想显式指定镜像地址，仓库也提供了一个直接消费该基础镜像的编排文件 [docker-compose.base.yml](../docker-compose.base.yml)，启动前只需要指定镜像地址：
+
+```bash
+WHISPER_BASE_IMAGE=difyz9/whisper-go-base:latest \
 docker compose -f docker-compose.base.yml up
 ```
 
 这个 compose 文件要求显式设置 `WHISPER_BASE_IMAGE`，避免默认值写成占位符后造成拉取失败。
+
+如果你在 Windows PowerShell 下使用，推荐直接运行 [scripts/compose-base.ps1](../scripts/compose-base.ps1)：
+
+```powershell
+.\scripts\compose-base.ps1 -Action up -Image difyz9/whisper-go-base:latest
+```
+
+它会完成这些步骤：
+
+- 检查 Docker / Docker Compose
+- 自动创建 `models`、`uploads`、`outputs` 目录
+- 拉取指定基础镜像
+- 调用 `docker compose -f docker-compose.base.yml up -d`
+
+Linux / macOS 下可以使用 [scripts/compose-base.sh](../scripts/compose-base.sh)：
+
+```bash
+chmod +x ./scripts/compose-base.sh
+./scripts/compose-base.sh --action up --image difyz9/whisper-go-base:latest
+```
 
 ### CPU 版本镜像
 
