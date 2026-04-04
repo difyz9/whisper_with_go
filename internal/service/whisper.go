@@ -3,6 +3,7 @@ package service
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -66,6 +67,8 @@ func (s *whisperService) Transcribe(audioPath, language, outputType string, tran
 	}
 	context.SetThreads(uint(s.config.Whisper.Threads))
 	context.SetTranslate(translate)
+	context.SetTokenTimestamps(true)
+	context.SetSplitOnWord(true)
 
 	// 6. 处理音频
 	if err := context.Process(samples, nil, nil, nil); err != nil {
@@ -87,10 +90,12 @@ func (s *whisperService) Transcribe(audioPath, language, outputType string, tran
 			continue
 		}
 
+		start, end := refinedSegmentTiming(context, segment)
+
 		segments = append(segments, model.Segment{
 			Index: len(segments) + 1,
-			Start: segment.Start.Seconds(),
-			End:   segment.End.Seconds(),
+			Start: durationToSeconds(start),
+			End:   durationToSeconds(end),
 			Text:  text,
 		})
 
@@ -179,4 +184,43 @@ func (s *whisperService) saveOutput(audioPath string, segments []model.Segment, 
 // generateTaskID 生成任务ID
 func generateTaskID() string {
 	return fmt.Sprintf("task_%d", time.Now().UnixNano())
+}
+
+func refinedSegmentTiming(context whisper.Context, segment whisper.Segment) (time.Duration, time.Duration) {
+	start := segment.Start
+	end := segment.End
+	hasTokenTiming := false
+
+	for _, token := range segment.Tokens {
+		if !context.IsText(token) || strings.TrimSpace(token.Text) == "" {
+			continue
+		}
+		if token.End <= token.Start {
+			continue
+		}
+
+		if !hasTokenTiming {
+			start = token.Start
+			end = token.End
+			hasTokenTiming = true
+			continue
+		}
+
+		if token.Start < start {
+			start = token.Start
+		}
+		if token.End > end {
+			end = token.End
+		}
+	}
+
+	if !hasTokenTiming || end <= start {
+		return segment.Start, segment.End
+	}
+
+	return start, end
+}
+
+func durationToSeconds(value time.Duration) float64 {
+	return float64(value.Milliseconds()) / 1000
 }

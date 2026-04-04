@@ -1,0 +1,169 @@
+basePath: /
+definitions:
+  whisper_with_go_internal_model.ErrorResponse:
+    properties:
+      error:
+        example: invalid request
+        type: string
+      message:
+        example: 参数错误
+        type: string
+      success:
+        example: false
+        type: boolean
+    type: object
+  whisper_with_go_internal_model.HealthCheckResponse:
+    properties:
+      status:
+        type: string
+      time:
+        type: string
+      version:
+        type: string
+    type: object
+  whisper_with_go_internal_model.Segment:
+    properties:
+      end:
+        description: 结束时间（秒）
+        type: number
+      index:
+        type: integer
+      start:
+        description: 开始时间（秒）
+        type: number
+      text:
+        description: 文本内容
+        type: string
+    type: object
+  whisper_with_go_internal_model.TranscribeResponse:
+    properties:
+      duration_seconds:
+        type: number
+      filename:
+        type: string
+      language:
+        type: string
+      output_file:
+        type: string
+      process_time_seconds:
+        type: number
+      segments:
+        items:
+          $ref: '#/definitions/whisper_with_go_internal_model.Segment'
+        type: array
+      task_id:
+        type: string
+      text:
+        type: string
+    type: object
+  whisper_with_go_internal_model.TranscribeSuccessResponse:
+    properties:
+      data:
+        $ref: '#/definitions/whisper_with_go_internal_model.TranscribeResponse'
+      message:
+        example: 转录成功
+        type: string
+      success:
+        example: true
+        type: boolean
+    type: object
+info:
+  contact:
+    name: API Support
+    url: https://github.com/difyz9/whisper_with_go
+  description: 基于 Gin 和 whisper.cpp 的语音转文字 API 服务。
+  license:
+    name: MIT
+  title: Whisper API Server
+  version: 1.0.0
+paths:
+  /api/v1/download/{filename}:
+    get:
+      description: 下载转录生成的字幕或文本文件
+      parameters:
+      - description: 文件名
+        in: path
+        name: filename
+        required: true
+        type: string
+      produces:
+      - application/octet-stream
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: file
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/whisper_with_go_internal_model.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/whisper_with_go_internal_model.ErrorResponse'
+      summary: 下载输出文件
+      tags:
+      - Whisper
+  /api/v1/transcribe:
+    post:
+      consumes:
+      - multipart/form-data
+      description: 上传音频文件并转录为文本
+      parameters:
+      - description: 音频文件
+        in: formData
+        name: file
+        required: true
+        type: file
+      - default: auto
+        description: 语言代码 (auto, zh, en, etc.)
+        in: formData
+        name: language
+        type: string
+      - default: json
+        description: 输出格式 (json, srt, txt)
+        in: formData
+        name: output_type
+        type: string
+      - default: false
+        description: 是否翻译为英文
+        in: formData
+        name: translate
+        type: boolean
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/whisper_with_go_internal_model.TranscribeSuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/whisper_with_go_internal_model.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/whisper_with_go_internal_model.ErrorResponse'
+      summary: 转录音频
+      tags:
+      - Whisper
+  /health:
+    get:
+      consumes:
+      - application/json
+      description: 检查服务是否正常运行
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/whisper_with_go_internal_model.HealthCheckResponse'
+      summary: 健康检查
+      tags:
+      - System
+schemes:
+- http
+- https
+swagger: "2.0"

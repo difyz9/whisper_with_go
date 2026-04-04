@@ -32,6 +32,7 @@
 - 📊 **结构化日志** - 完整的请求/响应日志
 - 🛡️ **错误恢复** - 自动错误恢复机制
 - 🌐 **CORS 支持** - 跨域请求支持
+- 📘 **Swagger 文档** - 内置 OpenAPI/Swagger UI
 - ⚙️ **环境配置** - 灵活的配置管理
 - 📚 **完整文档** - 详细的使用和架构文档
 
@@ -262,7 +263,28 @@ go run cmd/server/main.go
 
 服务器启动后将运行在 `http://localhost:8080`
 
+Swagger UI 默认地址：`http://localhost:8080/swagger/index.html`
+
+如果你修改了接口注解，可以重新生成文档：
+
+```bash
+make swagger
+```
+
 ## 📡 API 文档
+
+### Swagger UI
+
+启动服务后可直接访问：
+
+```text
+http://localhost:8080/swagger/index.html
+```
+
+项目会同时生成以下 OpenAPI 文档文件：
+
+- `docs/swagger.json`
+- `docs/swagger.yaml`
 
 ### 端点总览
 

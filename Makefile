@@ -1,4 +1,4 @@
-.PHONY: help build run test clean fmt lint
+.PHONY: help build run test clean fmt lint swagger
 
 # 默认目标
 .DEFAULT_GOAL := help
@@ -87,7 +87,13 @@ download: ## 下载依赖
 install-tools: ## 安装开发工具
 	@echo "正在安装开发工具..."
 	@go install github.com/cosmtrek/air@latest
+	@go install github.com/swaggo/swag/cmd/swag@v1.16.4
 	@echo "开发工具安装完成"
+
+swagger: ## 生成 Swagger 文档
+	@echo "正在生成 Swagger 文档..."
+	@go run github.com/swaggo/swag/cmd/swag@v1.16.4 init -g cmd/server/main.go -o docs --parseDependency --parseInternal
+	@echo "Swagger 文档已生成: docs/swagger.json, docs/swagger.yaml"
 
 setup: ## 项目初始设置
 	@echo "正在进行项目设置..."

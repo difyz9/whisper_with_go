@@ -2,6 +2,8 @@ package router
 
 import (
 	"github.com/gin-gonic/gin"
+	swaggerFiles "github.com/swaggo/files"
+	ginSwagger "github.com/swaggo/gin-swagger"
 	"whisper_with_go/config"
 	"whisper_with_go/internal/handler"
 	"whisper_with_go/internal/middleware"
@@ -27,6 +29,7 @@ func Setup(cfg *config.Config) *gin.Engine {
 
 	// 健康检查
 	r.GET("/health", whisperHandler.HealthCheck)
+	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 	r.GET("/", func(c *gin.Context) {
 		c.JSON(200, gin.H{
 			"message": "Whisper API Server",
@@ -35,6 +38,7 @@ func Setup(cfg *config.Config) *gin.Engine {
 				"health":     "GET /health",
 				"transcribe": "POST /api/v1/transcribe",
 				"download":   "GET /api/v1/download/:filename",
+				"swagger":    "GET /swagger/index.html",
 			},
 		})
 	})

@@ -2,12 +2,12 @@ version: '3.8'
 
 services:
   whisper-api:
-    image: ${WHISPER_BASE_IMAGE:-difyz9/whisper-go-base:latest}
+    image: ${WHISPER_BASE_IMAGE:-difyz9/whisper-go-base:v0.0.2}
     container_name: whisper-api
     working_dir: /workspace
     command: bash -lc "go mod download && go run cmd/server/main.go"
     ports:
-      - "8080:8080"
+      - "8090:8080"
     env_file:
       - .env
     volumes:

@@ -6,9 +6,19 @@ import (
 	"os"
 
 	"whisper_with_go/config"
+	docs "whisper_with_go/docs"
 	"whisper_with_go/internal/router"
 	"whisper_with_go/pkg/utils"
 )
+
+// @title Whisper API Server
+// @version 1.0.0
+// @description 基于 Gin 和 whisper.cpp 的语音转文字 API 服务。
+// @BasePath /
+// @schemes http https
+// @contact.name API Support
+// @contact.url https://github.com/difyz9/whisper_with_go
+// @license.name MIT
 
 func main() {
 	// 打印启动横幅
@@ -32,11 +42,14 @@ func main() {
 		log.Println("  bash download_model.sh")
 	}
 
+	addr := fmt.Sprintf(":%s", cfg.Server.Port)
+
 	// 设置路由
+	docs.SwaggerInfo.Host = fmt.Sprintf("localhost%s", addr)
+	docs.SwaggerInfo.BasePath = "/"
 	r := router.Setup(cfg)
 
 	// 启动服务器
-	addr := fmt.Sprintf(":%s", cfg.Server.Port)
 	log.Printf("服务器启动在 http://localhost%s", addr)
 	log.Printf("模式: %s", cfg.Server.Mode)
 	log.Printf("模型: %s", cfg.Whisper.ModelPath)
@@ -46,6 +59,7 @@ func main() {
 	log.Printf("  健康检查: GET  http://localhost%s/health", addr)
 	log.Printf("  转录音频: POST http://localhost%s/api/v1/transcribe", addr)
 	log.Printf("  下载文件: GET  http://localhost%s/api/v1/download/:filename", addr)
+	log.Printf("  Swagger : GET  http://localhost%s/swagger/index.html", addr)
 	log.Println("--------------------------------------")
 
 	if err := r.Run(addr); err != nil {

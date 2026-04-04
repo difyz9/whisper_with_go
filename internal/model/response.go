@@ -10,16 +10,30 @@ type Response struct {
 	Error   string      `json:"error,omitempty"`
 }
 
+// ErrorResponse 错误响应
+type ErrorResponse struct {
+	Success bool   `json:"success" example:"false"`
+	Message string `json:"message" example:"参数错误"`
+	Error   string `json:"error,omitempty" example:"invalid request"`
+}
+
+// TranscribeSuccessResponse 转录成功响应
+type TranscribeSuccessResponse struct {
+	Success bool               `json:"success" example:"true"`
+	Message string             `json:"message" example:"转录成功"`
+	Data    TranscribeResponse `json:"data"`
+}
+
 // TranscribeResponse 转录响应
 type TranscribeResponse struct {
-	TaskID      string     `json:"task_id"`
-	Filename    string     `json:"filename"`
-	Language    string     `json:"language"`
-	Duration    float64    `json:"duration_seconds"`
-	Segments    []Segment  `json:"segments,omitempty"`
-	Text        string     `json:"text,omitempty"`
-	OutputFile  string     `json:"output_file,omitempty"`
-	ProcessTime float64    `json:"process_time_seconds"`
+	TaskID      string    `json:"task_id"`
+	Filename    string    `json:"filename"`
+	Language    string    `json:"language"`
+	Duration    float64   `json:"duration_seconds"`
+	Segments    []Segment `json:"segments,omitempty"`
+	Text        string    `json:"text,omitempty"`
+	OutputFile  string    `json:"output_file,omitempty"`
+	ProcessTime float64   `json:"process_time_seconds"`
 }
 
 // Segment 转录片段

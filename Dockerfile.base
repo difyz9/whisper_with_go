@@ -39,7 +39,8 @@ RUN apt-get update && apt-get install -y \
 
 COPY --from=go-dist /usr/local/go /usr/local/go
 COPY --from=whisper-builder /opt/whisper.cpp /usr/local/whisper.cpp
-COPY --from=whisper-builder /opt/whisper.cpp/include/whisper.h /usr/local/include/whisper.h
+COPY --from=whisper-builder /opt/whisper.cpp/include/ /usr/local/include/
+COPY --from=whisper-builder /opt/whisper.cpp/ggml/include/ /usr/local/include/
 COPY --from=whisper-builder /opt/whisper.cpp/build/src/libwhisper.so /usr/local/lib/libwhisper.so
 COPY --from=whisper-builder /opt/whisper.cpp/build/ggml/src/libggml.so /usr/local/lib/libggml.so
 COPY --from=whisper-builder /opt/whisper.cpp/build/ggml/src/libggml-base.so /usr/local/lib/libggml-base.so
@@ -47,7 +48,13 @@ COPY --from=whisper-builder /opt/whisper.cpp/build/ggml/src/libggml-cpu.so /usr/
 
 RUN useradd -m -u 1000 whisper && \
     mkdir -p /workspace /models /tmp/whisper /go/pkg/mod /root/.cache/go-build && \
-    chown -R whisper:whisper /workspace /models /tmp/whisper
+    chown -R whisper:whisper /workspace /models /tmp/whisper && \
+    ln -sf /usr/local/lib/libwhisper.so /usr/local/lib/libwhisper.so.1 && \
+    ln -sf /usr/local/lib/libggml.so /usr/local/lib/libggml.so.0 && \
+    ln -sf /usr/local/lib/libggml-base.so /usr/local/lib/libggml-base.so.0 && \
+    ln -sf /usr/local/lib/libggml-cpu.so /usr/local/lib/libggml-cpu.so.0 && \
+    printf '/usr/local/lib\n' > /etc/ld.so.conf.d/whisper.conf && \
+    ldconfig
 
 ENV PATH=/usr/local/go/bin:${PATH}
 ENV CGO_ENABLED=1
@@ -66,3 +73,6 @@ CMD ["bash"]
 # 如果是本地先验证，先只测单平台更稳，比如：
 # docker buildx build --platform linux/amd64 -f Dockerfile.base .
 # docker buildx build --platform linux/arm64 -f Dockerfile.base .
+
+# docker build --platform linux/arm64 -f Dockerfile.base -t difyz9/whisper-go-base:v0.0.2 .
+# sudo docker build --platform linux/amd64 -f Dockerfile.base -t difyz9/whisper-go-base:v0.0.2 .

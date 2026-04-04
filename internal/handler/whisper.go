@@ -54,9 +54,9 @@ func (h *WhisperHandler) HealthCheck(c *gin.Context) {
 // @Param language formData string false "语言代码 (auto, zh, en, etc.)" default(auto)
 // @Param output_type formData string false "输出格式 (json, srt, txt)" default(json)
 // @Param translate formData boolean false "是否翻译为英文" default(false)
-// @Success 200 {object} model.Response
-// @Failure 400 {object} model.Response
-// @Failure 500 {object} model.Response
+// @Success 200 {object} model.TranscribeSuccessResponse
+// @Failure 400 {object} model.ErrorResponse
+// @Failure 500 {object} model.ErrorResponse
 // @Router /api/v1/transcribe [post]
 func (h *WhisperHandler) Transcribe(c *gin.Context) {
 	// 1. 获取上传的文件
@@ -87,7 +87,7 @@ func (h *WhisperHandler) Transcribe(c *gin.Context) {
 	// 4. 保存上传文件
 	filename := utils.GenerateUniqueFilename(file.Filename)
 	uploadPath := filepath.Join(h.config.Upload.UploadDir, filename)
-	
+
 	if err := utils.SaveUploadedFile(file, uploadPath); err != nil {
 		c.JSON(http.StatusInternalServerError, model.NewErrorResponse("保存文件失败", err))
 		return
@@ -133,13 +133,15 @@ func (h *WhisperHandler) Transcribe(c *gin.Context) {
 // @Summary 下载输出文件
 // @Description 下载转录生成的字幕或文本文件
 // @Tags Whisper
+// @Produce octet-stream
 // @Param filename path string true "文件名"
 // @Success 200 {file} file
-// @Failure 404 {object} model.Response
+// @Failure 400 {object} model.ErrorResponse
+// @Failure 404 {object} model.ErrorResponse
 // @Router /api/v1/download/{filename} [get]
 func (h *WhisperHandler) DownloadOutput(c *gin.Context) {
 	filename := c.Param("filename")
-	
+
 	// 防止路径遍历攻击
 	if strings.Contains(filename, "..") || strings.Contains(filename, "/") {
 		c.JSON(http.StatusBadRequest, model.NewErrorResponse("非法文件名", nil))
@@ -147,7 +149,7 @@ func (h *WhisperHandler) DownloadOutput(c *gin.Context) {
 	}
 
 	filepath := filepath.Join(h.config.Upload.OutputDir, filename)
-	
+
 	// 检查文件是否存在
 	if !utils.FileExists(filepath) {
 		c.JSON(http.StatusNotFound, model.NewErrorResponse("文件不存在", nil))
