@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"path/filepath"
@@ -46,7 +47,7 @@ func (h *WhisperHandler) HealthCheck(c *gin.Context) {
 
 // Transcribe 转录音频文件
 // @Summary 转录音频
-// @Description 上传音频文件并转录为文本
+// @Description 上传音频文件并创建异步转录任务
 // @Tags Whisper
 // @Accept multipart/form-data
 // @Produce json
@@ -54,7 +55,7 @@ func (h *WhisperHandler) HealthCheck(c *gin.Context) {
 // @Param language formData string false "语言代码 (auto, zh, en, etc.)" default(auto)
 // @Param output_type formData string false "输出格式 (json, srt, txt)" default(json)
 // @Param translate formData boolean false "是否翻译为英文" default(false)
-// @Success 200 {object} model.TranscribeSuccessResponse
+// @Success 202 {object} model.Response
 // @Failure 400 {object} model.ErrorResponse
 // @Failure 500 {object} model.ErrorResponse
 // @Router /api/v1/transcribe [post]
@@ -92,11 +93,11 @@ func (h *WhisperHandler) Transcribe(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, model.NewErrorResponse("保存文件失败", err))
 		return
 	}
-	defer utils.RemoveFile(uploadPath) // 处理完成后删除上传的文件
 
 	// 5. 获取请求参数
 	var req model.TranscribeRequest
 	if err := c.ShouldBind(&req); err != nil {
+		utils.RemoveFile(uploadPath)
 		c.JSON(http.StatusBadRequest, model.NewErrorResponse("参数错误", err))
 		return
 	}
@@ -111,6 +112,7 @@ func (h *WhisperHandler) Transcribe(c *gin.Context) {
 
 	// 验证输出格式
 	if !isValidOutputType(req.OutputType) {
+		utils.RemoveFile(uploadPath)
 		c.JSON(http.StatusBadRequest, model.NewErrorResponse(
 			"不支持的输出格式，仅支持: json, srt, txt",
 			nil,
@@ -118,15 +120,46 @@ func (h *WhisperHandler) Transcribe(c *gin.Context) {
 		return
 	}
 
-	// 6. 执行转录
-	result, err := h.service.Transcribe(uploadPath, req.Language, req.OutputType, req.Translate)
+	// 6. 创建异步任务
+	result, err := h.service.CreateTask(uploadPath, file.Filename, req)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, model.NewErrorResponse("转录失败", err))
+		utils.RemoveFile(uploadPath)
+		c.JSON(http.StatusInternalServerError, model.NewErrorResponse("创建转录任务失败", err))
 		return
 	}
 
 	// 7. 返回结果
-	c.JSON(http.StatusOK, model.NewSuccessResponse("转录成功", result))
+	c.JSON(http.StatusAccepted, model.NewSuccessResponse("任务已创建", result))
+}
+
+// GetTaskStatus 查询转录任务状态
+// @Summary 查询转录任务
+// @Description 通过任务 ID 查询转录状态和结果
+// @Tags Whisper
+// @Produce json
+// @Param task_id path string true "任务 ID"
+// @Success 200 {object} model.Response
+// @Failure 404 {object} model.ErrorResponse
+// @Router /api/v1/tasks/{task_id} [get]
+func (h *WhisperHandler) GetTaskStatus(c *gin.Context) {
+	taskID := c.Param("task_id")
+	if taskID == "" {
+		c.JSON(http.StatusBadRequest, model.NewErrorResponse("任务 ID 不能为空", nil))
+		return
+	}
+
+	result, err := h.service.GetTask(taskID)
+	if err != nil {
+		if errors.Is(err, service.ErrTaskNotFound) {
+			c.JSON(http.StatusNotFound, model.NewErrorResponse("任务不存在", nil))
+			return
+		}
+
+		c.JSON(http.StatusInternalServerError, model.NewErrorResponse("查询任务失败", err))
+		return
+	}
+
+	c.JSON(http.StatusOK, model.NewSuccessResponse("查询成功", result))
 }
 
 // DownloadOutput 下载输出文件

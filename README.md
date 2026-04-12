@@ -28,7 +28,7 @@
 - 📁 **多格式支持** - 支持 MP3, WAV, M4A, AAC, FLAC, OGG
 - 📝 **多种输出** - JSON, SRT 字幕, TXT 文本
 - 🌍 **自动语言检测** - 支持多语言自动识别
-- 🔄 **实时转录** - 快速处理音频文件
+- 🔄 **异步转录任务** - 上传后立即返回任务 ID，后台处理转录
 - 📊 **结构化日志** - 完整的请求/响应日志
 - 🛡️ **错误恢复** - 自动错误恢复机制
 - 🌐 **CORS 支持** - 跨域请求支持
@@ -292,7 +292,8 @@ http://localhost:8080/swagger/index.html
 |------|------|------|
 | GET | `/health` | 健康检查 |
 | GET | `/` | API 信息 |
-| POST | `/api/v1/transcribe` | 转录音频 |
+| POST | `/api/v1/transcribe` | 创建异步转录任务 |
+| GET | `/api/v1/tasks/:task_id` | 查询任务状态和结果 |
 | GET | `/api/v1/download/:filename` | 下载输出文件 |
 
 ### 1. 健康检查
@@ -310,7 +311,7 @@ curl http://localhost:8080/health
 }
 ```
 
-### 2. 转录音频
+### 2. 创建转录任务
 
 **请求**
 
@@ -335,32 +336,98 @@ curl -X POST http://localhost:8080/api/v1/transcribe \
 ```json
 {
   "success": true,
-  "message": "转录成功",
+  "message": "任务已创建",
   "data": {
     "task_id": "task_1709011200000000000",
-    "filename": "uploads/test.mp3",
-    "language": "zh",
-    "duration_seconds": 10.5,
-    "text": "这是完整的转录文本",
-    "segments": [
-      {
-        "index": 1,
-        "start": 0.0,
-        "end": 3.5,
-        "text": "这是第一段"
-      }
-    ],
-    "output_file": "outputs/test.srt",
-    "process_time_seconds": 2.5
+    "status": "pending",
+    "status_url": "/api/v1/tasks/task_1709011200000000000"
   }
 }
 ```
 
-### 3. 下载文件
+### 3. 查询任务状态
+
+```bash
+curl http://localhost:8080/api/v1/tasks/task_1709011200000000000
+```
+
+任务处理中示例：
+
+```json
+{
+  "success": true,
+  "message": "查询成功",
+  "data": {
+    "task_id": "task_1709011200000000000",
+    "status": "processing",
+    "created_at": "2026-04-12T10:00:00Z",
+    "started_at": "2026-04-12T10:00:01Z"
+  }
+}
+```
+
+任务完成示例：
+
+```json
+{
+  "success": true,
+  "message": "查询成功",
+  "data": {
+    "task_id": "task_1709011200000000000",
+    "status": "completed",
+    "created_at": "2026-04-12T10:00:00Z",
+    "started_at": "2026-04-12T10:00:01Z",
+    "completed_at": "2026-04-12T10:00:04Z",
+    "result": {
+      "task_id": "task_1709011200000000000",
+      "filename": "test.mp3",
+      "language": "zh",
+      "duration_seconds": 10.5,
+      "text": "这是完整的转录文本",
+      "segments": [
+        {
+          "index": 1,
+          "start": 0.0,
+          "end": 3.5,
+          "text": "这是第一段"
+        }
+      ],
+      "output_file": "test.srt",
+      "process_time_seconds": 2.5
+    }
+  }
+}
+```
+
+说明：当前任务状态保存在内存中，服务重启后未完成和历史任务不会保留。
+
+### 4. 下载文件
 
 ```bash
 curl -O http://localhost:8080/api/v1/download/test.srt
 ```
+
+### 依赖代理故障处理
+
+如果你遇到类似下面的错误：
+
+```text
+reading https://goproxy.io/...: 502 Bad Gateway
+```
+
+说明当前环境里的 Go 模块代理不可用。可以直接切换到官方代理并保留直连回退：
+
+```bash
+go env -w GOPROXY=https://proxy.golang.org,direct
+```
+
+如果你在当前 shell 里只想临时生效：
+
+```bash
+export GOPROXY=https://proxy.golang.org,direct
+```
+
+本项目的 `Makefile`、`start.sh` 和 Docker 相关构建文件已经默认使用这个代理回退链。
 
 ### 测试 API
 

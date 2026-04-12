@@ -16,6 +16,7 @@ services:
       - whisper-go-mod:/go/pkg/mod
       - whisper-go-cache:/root/.cache/go-build
     environment:
+      GOPROXY: ${GOPROXY:-https://proxy.golang.org,direct}
       SERVER_PORT: 8080
       GIN_MODE: release
       WHISPER_MODEL_PATH: models/ggml-base.bin

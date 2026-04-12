@@ -13,6 +13,7 @@ MAIN_FILE=$(CMD_DIR)/main.go
 GOBASE=$(shell pwd)
 GOBIN=$(GOBASE)/$(BUILD_DIR)
 GOCMD=go
+GOPROXY?=https://proxy.golang.org,direct
 GOBUILD=$(GOCMD) build
 GORUN=$(GOCMD) run
 GOCLEAN=$(GOCMD) clean
@@ -29,7 +30,7 @@ build: ## 构建应用程序
 	@echo "正在构建..."
 	@mkdir -p $(BUILD_DIR)
 	@echo "设置 CGO 环境变量..."
-	@CGO_ENABLED=1 CGO_LDFLAGS="-L/usr/local/lib" CGO_CFLAGS="-I/usr/local/include" \
+	@GOPROXY=$(GOPROXY) CGO_ENABLED=1 CGO_LDFLAGS="-L/usr/local/lib" CGO_CFLAGS="-I/usr/local/include" \
 		$(GOBUILD) -o $(GOBIN)/$(APP_NAME) $(MAIN_FILE)
 	@echo "构建完成: $(GOBIN)/$(APP_NAME)"
 	@echo ""
@@ -38,7 +39,7 @@ build: ## 构建应用程序
 
 run: ## 运行应用程序
 	@echo "正在启动服务器..."
-	@CGO_ENABLED=1 CGO_LDFLAGS="-L/usr/local/lib" CGO_CFLAGS="-I/usr/local/include" \
+	@GOPROXY=$(GOPROXY) CGO_ENABLED=1 CGO_LDFLAGS="-L/usr/local/lib" CGO_CFLAGS="-I/usr/local/include" \
 		DYLD_LIBRARY_PATH=/usr/local/lib $(GORUN) $(MAIN_FILE)
 
 dev: ## 开发模式运行（使用 air 热重载，需要先安装 air）
@@ -47,11 +48,11 @@ dev: ## 开发模式运行（使用 air 热重载，需要先安装 air）
 
 test: ## 运行测试
 	@echo "正在运行测试..."
-	@$(GOTEST) -v ./...
+	@GOPROXY=$(GOPROXY) $(GOTEST) -v ./...
 
 test-cover: ## 运行测试并生成覆盖率报告
 	@echo "正在运行测试并生成覆盖率..."
-	@$(GOTEST) -v -coverprofile=coverage.out ./...
+	@GOPROXY=$(GOPROXY) $(GOTEST) -v -coverprofile=coverage.out ./...
 	@$(GOCMD) tool cover -html=coverage.out -o coverage.html
 	@echo "覆盖率报告已生成: coverage.html"
 
@@ -76,30 +77,30 @@ lint: ## 代码检查（需要安装 golangci-lint）
 
 tidy: ## 整理依赖
 	@echo "正在整理依赖..."
-	@$(GOMOD) tidy
+	@GOPROXY=$(GOPROXY) $(GOMOD) tidy
 	@echo "依赖整理完成"
 
 download: ## 下载依赖
 	@echo "正在下载依赖..."
-	@$(GOMOD) download
+	@GOPROXY=$(GOPROXY) $(GOMOD) download
 	@echo "依赖下载完成"
 
 install-tools: ## 安装开发工具
 	@echo "正在安装开发工具..."
-	@go install github.com/cosmtrek/air@latest
-	@go install github.com/swaggo/swag/cmd/swag@v1.16.4
+	@GOPROXY=$(GOPROXY) go install github.com/cosmtrek/air@latest
+	@GOPROXY=$(GOPROXY) go install github.com/swaggo/swag/cmd/swag@v1.16.4
 	@echo "开发工具安装完成"
 
 swagger: ## 生成 Swagger 文档
 	@echo "正在生成 Swagger 文档..."
-	@go run github.com/swaggo/swag/cmd/swag@v1.16.4 init -g cmd/server/main.go -o docs --parseDependency --parseInternal
+	@GOPROXY=$(GOPROXY) go run github.com/swaggo/swag/cmd/swag@v1.16.4 init -g cmd/server/main.go -o docs --parseDependency --parseInternal
 	@echo "Swagger 文档已生成: docs/swagger.json, docs/swagger.yaml"
 
 setup: ## 项目初始设置
 	@echo "正在进行项目设置..."
 	@mkdir -p uploads outputs models
 	@cp -n .env.example .env 2>/dev/null || true
-	@$(GOMOD) tidy
+	@GOPROXY=$(GOPROXY) $(GOMOD) tidy
 	@echo "项目设置完成"
 	@echo "请确保:"
 	@echo "  1. 已安装 FFmpeg"

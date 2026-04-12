@@ -25,6 +25,9 @@ curl -X POST http://localhost:8080/api/v1/transcribe \
   -F "file=@test_data/test.mp3" \
   -F "language=auto" \
   -F "output_type=json"
+
+# 再通过返回的 task_id 查询结果
+curl http://localhost:8080/api/v1/tasks/<task_id>
 ```
 
 ### 测试旧版 CLI

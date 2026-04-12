@@ -23,6 +23,9 @@ RUN git clone https://github.com/ggerganov/whisper.cpp.git && \
 # Stage 2: Build Go application
 FROM golang:1.23.4-bullseye AS go-builder
 
+ARG GOPROXY=https://proxy.golang.org,direct
+ENV GOPROXY=${GOPROXY}
+
 WORKDIR /app
 
 # Copy go mod files

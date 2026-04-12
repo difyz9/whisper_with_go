@@ -1,10 +1,12 @@
 package service
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	whisper "github.com/ggerganov/whisper.cpp/bindings/go/pkg/whisper"
@@ -13,24 +15,130 @@ import (
 	"whisper_with_go/pkg/utils"
 )
 
+var ErrTaskNotFound = errors.New("task not found")
+
 // WhisperService Whisper 服务接口
 type WhisperService interface {
-	Transcribe(audioPath, language, outputType string, translate bool) (*model.TranscribeResponse, error)
+	CreateTask(audioPath, originalFilename string, req model.TranscribeRequest) (*model.TaskSubmissionResponse, error)
+	GetTask(taskID string) (*model.TaskStatusResponse, error)
 }
 
 type whisperService struct {
 	config *config.Config
+	mu     sync.RWMutex
+	tasks  map[string]*taskRecord
+}
+
+type taskRecord struct {
+	ID               string
+	AudioPath        string
+	OriginalFilename string
+	Request          model.TranscribeRequest
+	Status           model.TaskStatus
+	Result           *model.TranscribeResponse
+	Error            string
+	CreatedAt        time.Time
+	StartedAt        *time.Time
+	CompletedAt      *time.Time
 }
 
 // NewWhisperService 创建新的 Whisper 服务实例
 func NewWhisperService(cfg *config.Config) WhisperService {
 	return &whisperService{
 		config: cfg,
+		tasks:  make(map[string]*taskRecord),
 	}
 }
 
-// Transcribe 执行语音转录
-func (s *whisperService) Transcribe(audioPath, language, outputType string, translate bool) (*model.TranscribeResponse, error) {
+// CreateTask 创建异步转录任务
+func (s *whisperService) CreateTask(audioPath, originalFilename string, req model.TranscribeRequest) (*model.TaskSubmissionResponse, error) {
+	taskID := generateTaskID()
+	task := &taskRecord{
+		ID:               taskID,
+		AudioPath:        audioPath,
+		OriginalFilename: originalFilename,
+		Request:          req,
+		Status:           model.TaskStatusPending,
+		CreatedAt:        time.Now(),
+	}
+
+	s.mu.Lock()
+	s.tasks[taskID] = task
+	s.mu.Unlock()
+
+	go s.processTask(taskID)
+
+	return &model.TaskSubmissionResponse{
+		TaskID:    taskID,
+		Status:    model.TaskStatusPending,
+		StatusURL: fmt.Sprintf("/api/v1/tasks/%s", taskID),
+	}, nil
+}
+
+// GetTask 查询任务状态和结果
+func (s *whisperService) GetTask(taskID string) (*model.TaskStatusResponse, error) {
+	s.mu.RLock()
+	task, ok := s.tasks[taskID]
+	if !ok {
+		s.mu.RUnlock()
+		return nil, ErrTaskNotFound
+	}
+
+	response := &model.TaskStatusResponse{
+		TaskID:      task.ID,
+		Status:      task.Status,
+		Error:       task.Error,
+		Result:      task.Result,
+		CreatedAt:   task.CreatedAt,
+		StartedAt:   task.StartedAt,
+		CompletedAt: task.CompletedAt,
+	}
+	s.mu.RUnlock()
+
+	return response, nil
+}
+
+func (s *whisperService) processTask(taskID string) {
+	startedAt := time.Now()
+
+	s.mu.Lock()
+	task, ok := s.tasks[taskID]
+	if !ok {
+		s.mu.Unlock()
+		return
+	}
+	task.Status = model.TaskStatusProcessing
+	task.StartedAt = &startedAt
+	audioPath := task.AudioPath
+	originalFilename := task.OriginalFilename
+	req := task.Request
+	s.mu.Unlock()
+
+	defer utils.RemoveFile(audioPath)
+
+	result, err := s.transcribeAudio(taskID, audioPath, originalFilename, req.Language, req.OutputType, req.Translate)
+	completedAt := time.Now()
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	task, ok = s.tasks[taskID]
+	if !ok {
+		return
+	}
+	task.CompletedAt = &completedAt
+	if err != nil {
+		task.Status = model.TaskStatusFailed
+		task.Error = err.Error()
+		return
+	}
+
+	task.Status = model.TaskStatusCompleted
+	task.Result = result
+}
+
+// transcribeAudio 执行语音转录
+func (s *whisperService) transcribeAudio(taskID, audioPath, originalFilename, language, outputType string, translate bool) (*model.TranscribeResponse, error) {
 	startTime := time.Now()
 
 	// 1. 转换音频格式
@@ -114,8 +222,8 @@ func (s *whisperService) Transcribe(audioPath, language, outputType string, tran
 
 	// 9. 构建响应
 	response := &model.TranscribeResponse{
-		TaskID:      generateTaskID(),
-		Filename:    audioPath,
+		TaskID:      taskID,
+		Filename:    originalFilename,
 		Language:    language,
 		Text:        strings.TrimSpace(fullText.String()),
 		ProcessTime: time.Since(startTime).Seconds(),
@@ -178,7 +286,7 @@ func (s *whisperService) saveOutput(audioPath string, segments []model.Segment, 
 		}
 	}
 
-	return outputPath, nil
+	return filepath.Base(outputPath), nil
 }
 
 // generateTaskID 生成任务ID

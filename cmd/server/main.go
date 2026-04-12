@@ -58,6 +58,7 @@ func main() {
 	log.Println("API 端点:")
 	log.Printf("  健康检查: GET  http://localhost%s/health", addr)
 	log.Printf("  转录音频: POST http://localhost%s/api/v1/transcribe", addr)
+	log.Printf("  任务查询: GET  http://localhost%s/api/v1/tasks/:task_id", addr)
 	log.Printf("  下载文件: GET  http://localhost%s/api/v1/download/:filename", addr)
 	log.Printf("  Swagger : GET  http://localhost%s/swagger/index.html", addr)
 	log.Println("--------------------------------------")

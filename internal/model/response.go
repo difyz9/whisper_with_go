@@ -2,6 +2,16 @@ package model
 
 import "time"
 
+// TaskStatus 任务状态
+type TaskStatus string
+
+const (
+	TaskStatusPending    TaskStatus = "pending"
+	TaskStatusProcessing TaskStatus = "processing"
+	TaskStatusCompleted  TaskStatus = "completed"
+	TaskStatusFailed     TaskStatus = "failed"
+)
+
 // Response 通用响应结构
 type Response struct {
 	Success bool        `json:"success"`
@@ -22,6 +32,24 @@ type TranscribeSuccessResponse struct {
 	Success bool               `json:"success" example:"true"`
 	Message string             `json:"message" example:"转录成功"`
 	Data    TranscribeResponse `json:"data"`
+}
+
+// TaskSubmissionResponse 提交异步任务响应
+type TaskSubmissionResponse struct {
+	TaskID    string     `json:"task_id"`
+	Status    TaskStatus `json:"status"`
+	StatusURL string     `json:"status_url,omitempty"`
+}
+
+// TaskStatusResponse 任务状态响应
+type TaskStatusResponse struct {
+	TaskID      string              `json:"task_id"`
+	Status      TaskStatus          `json:"status"`
+	Error       string              `json:"error,omitempty"`
+	Result      *TranscribeResponse `json:"result,omitempty"`
+	CreatedAt   time.Time           `json:"created_at"`
+	StartedAt   *time.Time          `json:"started_at,omitempty"`
+	CompletedAt *time.Time          `json:"completed_at,omitempty"`
 }
 
 // TranscribeResponse 转录响应

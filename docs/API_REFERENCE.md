@@ -128,7 +128,7 @@ make build
 }
 ```
 
-### 2. 转录音频
+### 2. 创建转录任务
 
 **POST** `/api/v1/transcribe`
 
@@ -169,34 +169,65 @@ curl -X POST http://localhost:8080/api/v1/transcribe \
 ```json
 {
   "success": true,
-  "message": "转录成功",
+  "message": "任务已创建",
   "data": {
     "task_id": "task_1709011200000000000",
-    "filename": "uploads/test_20260227_abc123.mp3",
-    "language": "zh",
-    "duration_seconds": 10.5,
-    "text": "这是转录的完整文本内容",
-    "segments": [
-      {
-        "index": 1,
-        "start": 0.0,
-        "end": 3.5,
-        "text": "这是第一段文本"
-      },
-      {
-        "index": 2,
-        "start": 3.5,
-        "end": 7.0,
-        "text": "这是第二段文本"
-      }
-    ],
-    "output_file": "outputs/test.srt",
-    "process_time_seconds": 2.5
+    "status": "pending",
+    "status_url": "/api/v1/tasks/task_1709011200000000000"
   }
 }
 ```
 
-### 3. 下载输出文件
+### 3. 查询任务状态
+
+**GET** `/api/v1/tasks/:task_id`
+
+示例:
+```bash
+curl http://localhost:8080/api/v1/tasks/task_1709011200000000000
+```
+
+任务完成响应:
+```json
+{
+  "success": true,
+  "message": "查询成功",
+  "data": {
+    "task_id": "task_1709011200000000000",
+    "status": "completed",
+    "created_at": "2026-04-12T10:00:00Z",
+    "started_at": "2026-04-12T10:00:01Z",
+    "completed_at": "2026-04-12T10:00:04Z",
+    "result": {
+      "task_id": "task_1709011200000000000",
+      "filename": "test.mp3",
+      "language": "zh",
+      "duration_seconds": 10.5,
+      "text": "这是转录的完整文本内容",
+      "segments": [
+        {
+          "index": 1,
+          "start": 0.0,
+          "end": 3.5,
+          "text": "这是第一段文本"
+        },
+        {
+          "index": 2,
+          "start": 3.5,
+          "end": 7.0,
+          "text": "这是第二段文本"
+        }
+      ],
+      "output_file": "test.srt",
+      "process_time_seconds": 2.5
+    }
+  }
+}
+```
+
+说明：当前任务状态保存在内存中，服务重启后任务记录不会保留。
+
+### 4. 下载输出文件
 
 **GET** `/api/v1/download/:filename`
 

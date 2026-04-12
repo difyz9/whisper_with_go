@@ -8,6 +8,7 @@ echo "================================"
 echo ""
 
 # 设置 CGO 环境变量
+export GOPROXY="${GOPROXY:-https://proxy.golang.org,direct}"
 export CGO_ENABLED=1
 export CGO_LDFLAGS="-L/usr/local/lib"
 export CGO_CFLAGS="-I/usr/local/include"

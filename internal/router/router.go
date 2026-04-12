@@ -35,10 +35,11 @@ func Setup(cfg *config.Config) *gin.Engine {
 			"message": "Whisper API Server",
 			"version": "1.0.0",
 			"endpoints": gin.H{
-				"health":     "GET /health",
-				"transcribe": "POST /api/v1/transcribe",
-				"download":   "GET /api/v1/download/:filename",
-				"swagger":    "GET /swagger/index.html",
+					"health":      "GET /health",
+					"transcribe":  "POST /api/v1/transcribe",
+					"task_status": "GET /api/v1/tasks/:task_id",
+					"download":    "GET /api/v1/download/:filename",
+					"swagger":     "GET /swagger/index.html",
 			},
 		})
 	})
@@ -48,6 +49,7 @@ func Setup(cfg *config.Config) *gin.Engine {
 	{
 		// Whisper 转录相关
 		v1.POST("/transcribe", whisperHandler.Transcribe)
+		v1.GET("/tasks/:task_id", whisperHandler.GetTaskStatus)
 		v1.GET("/download/:filename", whisperHandler.DownloadOutput)
 	}
 
